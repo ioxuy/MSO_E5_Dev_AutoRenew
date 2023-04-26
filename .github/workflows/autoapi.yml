@@ -1,0 +1,60 @@
+#Automatic call to the API to keep alive, encrypted version
+name: E5 AutoRenew
+
+on: 
+  release:
+    types: [published]
+  push:
+    tags:
+    - 'v*'
+  #  branches: 
+  #    - master
+  schedule:
+    - cron: "10 */2 * * *"
+  watch:
+    types: [started]
+   
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: (github.event.repository.owner.id == github.event.sender.id) || ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}  # Self-ordered start
+    #if: github.event.repository.owner.id == github.event.sender.id  # Self-ordered start
+    name: Build and call API
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        persist-credentials: true # otherwise, the token used is the GITHUB_TOKEN, instead of your personal access token.
+        fetch-depth: 0 # otherwise, there would be errors pushing refs to the destination repository.
+    - name: Set up Python #Install python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+        check-latest: true
+    - name: Install requests #Installation requests
+      run: |
+        pip install requests
+        pip install pycryptodome
+    - name: Test Api #ApiCall
+      env: 
+        CLIENT_ID: ${{ secrets.CLIENT_ID }} # client_id prepare
+        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }} # client_secret prepare
+        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }} # refresh_token prepare
+        TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+        TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      run: | 
+        echo `date +"%Y-%m-%d %H:%M:%S"` begin > time.log
+        python3 main.py
+    - name: Commit New Refresh Token #Upload a new refresh_token to the repository
+      run: |
+        git config --local user.name "E5 AutoRenew[bot]"
+        git config --local user.email "action@github.com"       
+        git add .
+        git commit -m "$(date '+%Y-%m-%d %H:%M:%S') update new refresh_token with E5 AutoRenew" -a
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}
+        #force_with_lease: true
+        
